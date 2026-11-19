@@ -30,8 +30,9 @@ function booking(start, end, extra = {}) {
 
 function setup({ reservations = [], now = () => NOW } = {}) {
     const { runInTransaction } = createMemoryUnitOfWork({ users: USERS, buildings: BUILDINGS, rooms: ROOMS, reservations });
-    const service = createReservationsService({ runInTransaction, now });
-    return { service };
+    const eventBus = { publish: jest.fn(), subscribe: jest.fn() };
+    const service = createReservationsService({ runInTransaction, eventBus, now });
+    return { service, eventBus };
 }
 
 const existing = reservation(1, { startTime: at("10:00"), endTime: at("12:00") });
@@ -211,5 +212,54 @@ describe("ownership", () => {
 
         await expect(service.listReservations({ page: 1, limit: 20, sort: "startTime", userId: otherUser.id }, owner))
             .rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
+    });
+});
+
+describe("events", () => {
+    test("publishes reservation.created after successful creation", async () => {
+        const { service, eventBus } = setup();
+
+        const created = await service.createReservation(booking("10:00", "11:00"), owner);
+
+        expect(eventBus.publish).toHaveBeenCalledTimes(1);
+        expect(eventBus.publish).toHaveBeenCalledWith("reservation.created", {
+            reservationId: created.id,
+            roomId: 1,
+            userId: owner.id,
+            startTime: "2026-12-01T10:00:00.000Z",
+            endTime: "2026-12-01T11:00:00.000Z"
+        });
+    });
+
+    test("does not publish when creation fails", async () => {
+        const { service, eventBus } = setup({ reservations: [existing] });
+
+        await expect(service.createReservation(booking("11:00", "13:00"), otherUser)).rejects.toMatchObject({ code: "ROOM_ALREADY_BOOKED" });
+
+        expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    test("publishes reservation.cancelled once, not on idempotent second cancellation", async () => {
+        const { service, eventBus } = setup({ reservations: [existing] });
+
+        await service.cancelReservation(1, admin);
+        await service.cancelReservation(1, admin);
+
+        expect(eventBus.publish).toHaveBeenCalledTimes(1);
+        expect(eventBus.publish).toHaveBeenCalledWith("reservation.cancelled", {
+            reservationId: 1,
+            roomId: 1,
+            userId: owner.id,
+            cancelledBy: admin.id
+        });
+    });
+
+    test("does not publish when cancellation is rejected", async () => {
+        const started = reservation(1, { startTime: "2026-11-01T11:00:00Z", endTime: "2026-11-01T14:00:00Z" });
+        const { service, eventBus } = setup({ reservations: [started] });
+
+        await expect(service.cancelReservation(1, owner)).rejects.toMatchObject({ code: "RESERVATION_ALREADY_STARTED" });
+
+        expect(eventBus.publish).not.toHaveBeenCalled();
     });
 });

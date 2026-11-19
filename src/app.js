@@ -5,6 +5,7 @@ const requestLogger = require("./middleware/requestLogger");
 const authenticate = require("./middleware/authenticate");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
+const { noopEventBus } = require("./events/eventBus");
 const { createAuthService } = require("./modules/auth/auth.service");
 const { createAuthController } = require("./modules/auth/auth.controller");
 const { createAuthRouter } = require("./modules/auth/auth.routes");
@@ -17,8 +18,11 @@ const { createRoomsRouter } = require("./modules/rooms/rooms.routes");
 const { createReservationsService } = require("./modules/reservations/reservations.service");
 const { createReservationsController } = require("./modules/reservations/reservations.controller");
 const { createReservationsRouter } = require("./modules/reservations/reservations.routes");
+const { createAuditService } = require("./modules/audit/audit.service");
+const { createAuditController } = require("./modules/audit/audit.controller");
+const { createAdminRouter } = require("./modules/audit/audit.routes");
 
-function createApp({ config, runInTransaction, now }) {
+function createApp({ config, runInTransaction, eventBus = noopEventBus, now }) {
     const app = express();
 
     app.use(requestLogger);
@@ -39,14 +43,18 @@ function createApp({ config, runInTransaction, now }) {
     const roomsService = createRoomsService({ runInTransaction });
     const roomsController = createRoomsController(roomsService);
 
-    const reservationsService = createReservationsService({ runInTransaction, now });
+    const reservationsService = createReservationsService({ runInTransaction, eventBus, now });
     const reservationsController = createReservationsController(reservationsService);
+
+    const auditService = createAuditService({ runInTransaction });
+    const auditController = createAuditController(auditService);
 
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
     app.use("/api/auth", createAuthRouter(authController, requireAuth));
     app.use("/api/buildings", requireAuth, createBuildingsRouter(buildingsController));
     app.use("/api/rooms", requireAuth, createRoomsRouter(roomsController));
     app.use("/api/reservations", requireAuth, createReservationsRouter(reservationsController));
+    app.use("/api/admin", requireAuth, createAdminRouter(auditController));
 
     app.use(notFound);
     app.use(errorHandler);

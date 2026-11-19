@@ -2,11 +2,18 @@ const config = require("./config");
 const { createApp } = require("./app");
 const { createKnexUnitOfWork } = require("./db/unitOfWork.knex");
 const { createMemoryUnitOfWork } = require("./db/unitOfWork.memory");
+const { createEventBus } = require("./events/eventBus");
+const { registerAuditListeners } = require("./events/auditListeners");
+const { registerNotificationListeners } = require("./events/notificationListeners");
 
 const db = config.REPOSITORY === "memory" ? null : require("./db/knex");
 const unitOfWork = db ? createKnexUnitOfWork(db) : createMemoryUnitOfWork();
 
-const app = createApp({ config, runInTransaction: unitOfWork.runInTransaction });
+const eventBus = createEventBus();
+registerAuditListeners(eventBus, unitOfWork.runInTransaction);
+registerNotificationListeners(eventBus, unitOfWork.runInTransaction);
+
+const app = createApp({ config, runInTransaction: unitOfWork.runInTransaction, eventBus });
 
 const server = app.listen(config.PORT, err => {
     if (err) {

@@ -10,7 +10,7 @@ const USERS = [
 ];
 
 exports.seed = async function (knex) {
-    await knex.raw("TRUNCATE reservations, rooms, buildings, users RESTART IDENTITY CASCADE");
+    await knex.raw("TRUNCATE audit_log, reservations, rooms, buildings, users RESTART IDENTITY CASCADE");
 
     for (const { password, ...user } of USERS) {
         const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);

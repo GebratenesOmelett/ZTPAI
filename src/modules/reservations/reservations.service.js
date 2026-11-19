@@ -1,5 +1,7 @@
 const { NotFoundError, ConflictError, ValidationError, ForbiddenError } = require("../../errors/AppError");
 const { ROLE } = require("../users/users.roles");
+const { noopEventBus } = require("../../events/eventBus");
+const { EVENT } = require("../../events/eventTypes");
 
 const MINUTE_MS = 60 * 1000;
 const MIN_DURATION_MS = 15 * MINUTE_MS;
@@ -31,7 +33,7 @@ async function findAccessibleReservation(reservations, id, currentUser) {
     return reservation;
 }
 
-function createReservationsService({ runInTransaction, now = () => new Date() }) {
+function createReservationsService({ runInTransaction, eventBus = noopEventBus, now = () => new Date() }) {
     function assertValidTimeRange({ startTime, endTime }) {
         const start = toTime(startTime);
         const end = toTime(endTime);
@@ -55,7 +57,7 @@ function createReservationsService({ runInTransaction, now = () => new Date() })
     async function createReservation(input, currentUser) {
         assertValidTimeRange(input);
 
-        return runInTransaction(async ({ rooms, reservations }) => {
+        const reservation = await runInTransaction(async ({ rooms, reservations }) => {
             const room = await rooms.findById(input.roomId);
             if (!room) throw new NotFoundError("Room");
 
@@ -76,27 +78,51 @@ function createReservationsService({ runInTransaction, now = () => new Date() })
                 status: STATUS.CONFIRMED
             });
         });
+
+        eventBus.publish(EVENT.RESERVATION_CREATED, {
+            reservationId: reservation.id,
+            roomId: reservation.room.id,
+            userId: reservation.user.id,
+            startTime: new Date(reservation.startTime).toISOString(),
+            endTime: new Date(reservation.endTime).toISOString()
+        });
+
+        return reservation;
     }
 
     async function cancelReservation(id, currentUser) {
-        return runInTransaction(async ({ reservations }) => {
-            const reservation = await findAccessibleReservation(reservations, id, currentUser);
+        let changed = false;
 
-            if (reservation.status === STATUS.CANCELLED) return reservation;
+        const reservation = await runInTransaction(async ({ reservations }) => {
+            const current = await findAccessibleReservation(reservations, id, currentUser);
 
-            if (!ALLOWED_TRANSITIONS[reservation.status].includes(STATUS.CANCELLED)) {
+            if (current.status === STATUS.CANCELLED) return current;
+
+            if (!ALLOWED_TRANSITIONS[current.status].includes(STATUS.CANCELLED)) {
                 throw new ConflictError(
-                    `Cannot change status from ${reservation.status} to ${STATUS.CANCELLED}`,
+                    `Cannot change status from ${current.status} to ${STATUS.CANCELLED}`,
                     "INVALID_STATUS_TRANSITION"
                 );
             }
 
-            if (toTime(reservation.startTime) <= now().getTime()) {
+            if (toTime(current.startTime) <= now().getTime()) {
                 throw new ConflictError("Reservation has already started", "RESERVATION_ALREADY_STARTED");
             }
 
+            changed = true;
             return reservations.updateStatus(id, STATUS.CANCELLED, { cancelledAt: now() });
         });
+
+        if (changed) {
+            eventBus.publish(EVENT.RESERVATION_CANCELLED, {
+                reservationId: reservation.id,
+                roomId: reservation.room.id,
+                userId: reservation.user.id,
+                cancelledBy: currentUser.id
+            });
+        }
+
+        return reservation;
     }
 
     async function getReservation(id, currentUser) {

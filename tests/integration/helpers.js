@@ -14,9 +14,9 @@ const PIOTR = { id: 3, email: "piotr@example.com" };
 
 let passwordHash;
 
-function createTestApp() {
+function createTestApp({ eventBus } = {}) {
     const { runInTransaction } = createKnexUnitOfWork(db);
-    const app = createApp({ config, runInTransaction, now: () => NOW });
+    const app = createApp({ config, runInTransaction, eventBus, now: () => NOW });
     return { app, runInTransaction };
 }
 
@@ -26,7 +26,7 @@ async function prepareDatabase() {
 }
 
 async function resetDatabase() {
-    await db.raw("TRUNCATE reservations, rooms, buildings, users RESTART IDENTITY CASCADE");
+    await db.raw("TRUNCATE audit_log, reservations, rooms, buildings, users RESTART IDENTITY CASCADE");
     await db("users").insert([
         { email: ADMIN.email, password_hash: passwordHash, role: "ADMIN" },
         { email: ANNA.email, password_hash: passwordHash, role: "USER" },
@@ -48,4 +48,13 @@ function booking(start, end, extra = {}) {
     return { roomId: 1, participants: 5, startTime: `2026-12-01T${start}:00Z`, endTime: `2026-12-01T${end}:00Z`, ...extra };
 }
 
-module.exports = { db, NOW, ADMIN, ANNA, PIOTR, createTestApp, prepareDatabase, resetDatabase, login, booking };
+async function waitFor(condition, timeoutMs = 3000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (await condition()) return;
+        await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw new Error("Condition not met in time");
+}
+
+module.exports = { db, NOW, ADMIN, ANNA, PIOTR, createTestApp, prepareDatabase, resetDatabase, login, booking, waitFor };

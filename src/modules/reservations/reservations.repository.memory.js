@@ -33,8 +33,8 @@ function toTime(value) {
 }
 
 function overlaps(a, b) {
-    return toTime(a.startTime) <= toTime(b.endTime)
-        && toTime(b.startTime) <= toTime(a.endTime);
+    return toTime(a.startTime) < toTime(b.endTime)
+        && toTime(b.startTime) < toTime(a.endTime);
 }
 
 function createReservationsRepository(state) {

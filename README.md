@@ -1,5 +1,7 @@
 # Room Booking API
 
+![CI](https://github.com/GebratenesOmelett/ZTPAI/actions/workflows/ci.yml/badge.svg)
+
 REST API do rezerwacji sal w budynkach: Express 5, Zod, Knex, PostgreSQL 16, JWT.
 
 ## Uruchomienie od zera (Docker)

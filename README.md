@@ -2,44 +2,39 @@
 
 ![CI](https://github.com/GebratenesOmelett/ZTPAI/actions/workflows/ci.yml/badge.svg)
 
-REST API do rezerwacji sal w budynkach: Express 5, Zod, Knex, PostgreSQL 16, JWT.
+## Uruchomienie
 
-## Uruchomienie od zera (Docker)
+Trzeba mieć Dockera.
 
-Wymagany jest tylko Docker z Docker Compose v2.
-
-```bash
+```
 git clone https://github.com/GebratenesOmelett/ZTPAI.git
 cd ZTPAI
 cp .env.example .env
 docker compose up --build
 ```
 
-Po starcie:
+API działa na http://localhost:3000/api, Swagger na http://localhost:3000/api/docs.
 
-- API: http://localhost:3000/api
-- Swagger UI: http://localhost:3000/api/docs
+Migracje robią się same. Żeby wrzucić przykładowe dane (w drugim terminalu):
 
-Migracje wykonują się automatycznie przy starcie kontenera `api`. Dane przykładowe i konto ADMIN tworzy seed (w drugim terminalu):
-
-```bash
+```
 docker compose exec api npx knex seed:run
 ```
 
-| Konto | Hasło | Rola |
-|---|---|---|
-| admin@example.com | admin-password-123 | ADMIN |
-| anna.nowak@example.com | user-password-123 | USER |
-| piotr.wisniewski@example.com | user-password-123 | USER |
-| katarzyna.zielinska@example.com | user-password-123 | USER |
+Konta:
 
-Seed czyści wszystkie tabele. Wartości w `.env.example` są przykładowe: przed wdrożeniem ustaw własne `POSTGRES_PASSWORD` i `JWT_SECRET` (min. 32 znaki).
+- admin@example.com / admin-password-123 (ADMIN)
+- anna.nowak@example.com / user-password-123
+- piotr.wisniewski@example.com / user-password-123
+- katarzyna.zielinska@example.com / user-password-123
 
-Zatrzymanie: `docker compose down` (dane zostają w volume), `docker compose down -v` (razem z danymi).
+Seed czyści bazę przed wrzuceniem danych.
 
-## Uruchomienie bez Dockera dla API
+Zatrzymanie: `docker compose down` (z `-v` usuwa też dane).
 
-```bash
+## Bez Dockera
+
+```
 npm ci
 docker compose up -d db
 npx knex migrate:latest
@@ -49,16 +44,16 @@ npm start
 
 ## Testy
 
-Testy integracyjne używają osobnej bazy `<POSTGRES_DB>_test` (nigdy deweloperskiej). Jednorazowo utwórz ją w kontenerze bazy:
+Testy integracyjne używają osobnej bazy, trzeba ją raz utworzyć:
 
-```bash
-docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" "${POSTGRES_DB}_test"'
+```
+docker compose exec db createdb -U ztpai ztpai_test
 ```
 
-```bash
-npm test                  # unit + integration
-npm run test:unit         # bez bazy danych
-npm run test:integration  # Supertest + PostgreSQL
+```
+npm test
+npm run test:unit
+npm run test:integration
 ```
 
-Adres bazy testowej można podać wprost zmienną `TEST_DATABASE_URL`.
+Unit testy nie potrzebują bazy. Testy odpalają się też w GitHub Actions przy pushu i PR.

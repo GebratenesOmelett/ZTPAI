@@ -1,0 +1,398 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Room Booking API",
+    "version": "4.0.0",
+    "description": "Rezerwacja sal w budynkach. Wszystkie endpointy poza rejestracją i logowaniem wymagają tokenu JWT (przycisk Authorize)."
+  },
+  "tags": [
+    { "name": "Auth", "description": "Rejestracja, logowanie, bieżący użytkownik" },
+    { "name": "Buildings", "description": "GET - każdy zalogowany, POST - tylko ADMIN" },
+    { "name": "Rooms", "description": "GET - każdy zalogowany, POST - tylko ADMIN" },
+    { "name": "Reservations", "description": "USER widzi i anuluje tylko własne rezerwacje, ADMIN wszystkie" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user (always role USER)",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "User created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "409": { "description": "EMAIL_TAKEN - email already registered", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Log in and get an access token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Access token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "description": "INVALID_CREDENTIALS - wrong email or password (same response for both)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get the logged-in user",
+        "responses": {
+          "200": { "description": "Current user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "User from the token no longer exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/buildings": {
+      "get": {
+        "tags": ["Buildings"],
+        "summary": "List buildings with rooms count",
+        "responses": {
+          "200": { "description": "Buildings", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Building" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Buildings"],
+        "summary": "Create a building (ADMIN)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateBuildingRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Building created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Building" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "description": "UNIQUE_VIOLATION - building name already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/buildings/{id}": {
+      "get": {
+        "tags": ["Buildings"],
+        "summary": "Get a building",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Building", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Building" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Building not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/buildings/{id}/rooms": {
+      "get": {
+        "tags": ["Buildings"],
+        "summary": "List rooms of a building",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Rooms of the building", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Room" } } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Building not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/rooms": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "List rooms",
+        "responses": {
+          "200": { "description": "Rooms", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Room" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Rooms"],
+        "summary": "Create a room (ADMIN)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRoomRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Room created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Room" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "description": "Building not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "UNIQUE_VIOLATION - room name already exists in this building", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/rooms/{id}": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Get a room",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Room", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Room" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Room not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/reservations": {
+      "get": {
+        "tags": ["Reservations"],
+        "summary": "List reservations (USER - only own, ADMIN - all)",
+        "parameters": [
+          { "name": "userId", "in": "query", "description": "ADMIN only. For USER the request ends with 403.", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "roomId", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "buildingId", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["CONFIRMED", "CANCELLED"] } },
+          { "name": "from", "in": "query", "description": "Reservations ending after this moment (ISO 8601 with offset)", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "description": "Reservations starting before this moment, must be after from", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["startTime", "-startTime", "createdAt", "-createdAt", "participants", "-participants"], "default": "startTime" } }
+        ],
+        "responses": {
+          "200": { "description": "Page of reservations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReservationPage" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "FORBIDDEN - USER used the userId filter", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Reservations"],
+        "summary": "Create a reservation for the logged-in user",
+        "description": "The owner is taken from the token. Fields userId / reservedBy in the body end with 400.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateReservationRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Reservation created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Room not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "ROOM_CAPACITY_EXCEEDED or ROOM_ALREADY_BOOKED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/reservations/{id}": {
+      "get": {
+        "tags": ["Reservations"],
+        "summary": "Get a reservation (owner or ADMIN)",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Reservation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Reservation not found or owned by another user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/reservations/{id}/cancel": {
+      "patch": {
+        "tags": ["Reservations"],
+        "summary": "Cancel a reservation (owner or ADMIN)",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Cancelled reservation (also when it was already cancelled)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Reservation not found or owned by another user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "RESERVATION_ALREADY_STARTED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "VALIDATION_ERROR or INVALID_JSON - invalid params, query or body (unknown fields are rejected too)",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unauthorized": {
+        "description": "UNAUTHORIZED - missing or invalid token, TOKEN_EXPIRED - token expired",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Forbidden": {
+        "description": "FORBIDDEN - the role is not allowed to do this",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "requestId"],
+            "properties": {
+              "code": { "type": "string", "example": "VALIDATION_ERROR" },
+              "message": { "type": "string", "example": "Validation failed" },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "location": { "type": "string", "enum": ["params", "query", "body"] },
+                    "field": { "type": "string", "example": "password" },
+                    "message": { "type": "string", "example": "Password must have at least 10 characters" }
+                  }
+                }
+              },
+              "requestId": { "type": "string", "example": "3f2b8c1e-6a4d-4e2f-9b7a-1c2d3e4f5a6b" }
+            }
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 254, "example": "Jan.Kowalski@example.com" },
+          "password": { "type": "string", "minLength": 10, "maxLength": 72, "example": "bardzo-dlugie-haslo" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "anna.nowak@example.com" },
+          "password": { "type": "string", "example": "user-password-123" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+          "tokenType": { "type": "string", "enum": ["Bearer"] },
+          "expiresIn": { "type": "string", "example": "15m" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 5 },
+          "email": { "type": "string", "example": "jan.kowalski@example.com" },
+          "role": { "type": "string", "enum": ["USER", "ADMIN"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "BuildingRef": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Budynek A" }
+        }
+      },
+      "Building": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Budynek A" },
+          "address": { "type": "string", "example": "ul. Warszawska 24, Kraków" },
+          "roomsCount": { "type": "integer", "example": 3 }
+        }
+      },
+      "CreateBuildingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "address"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100, "example": "Budynek D" },
+          "address": { "type": "string", "minLength": 1, "maxLength": 255, "example": "ul. Nowa 1, Kraków" }
+        }
+      },
+      "Room": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "101" },
+          "capacity": { "type": "integer", "example": 30 },
+          "building": { "$ref": "#/components/schemas/BuildingRef" }
+        }
+      },
+      "CreateRoomRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["buildingId", "name", "capacity"],
+        "properties": {
+          "buildingId": { "type": "integer", "minimum": 1, "example": 1 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100, "example": "301" },
+          "capacity": { "type": "integer", "minimum": 1, "example": 16 }
+        }
+      },
+      "Reservation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "room": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 1 },
+              "name": { "type": "string", "example": "101" },
+              "building": { "$ref": "#/components/schemas/BuildingRef" }
+            }
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 2 },
+              "email": { "type": "string", "example": "anna.nowak@example.com" }
+            }
+          },
+          "participants": { "type": "integer", "example": 20 },
+          "startTime": { "type": "string", "format": "date-time" },
+          "endTime": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["CONFIRMED", "CANCELLED"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "cancelledAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CreateReservationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["roomId", "participants", "startTime", "endTime"],
+        "properties": {
+          "roomId": { "type": "integer", "minimum": 1, "example": 3 },
+          "participants": { "type": "integer", "minimum": 1, "example": 5 },
+          "startTime": { "type": "string", "format": "date-time", "description": "ISO 8601 with offset, not in the past", "example": "2026-12-01T10:00:00Z" },
+          "endTime": { "type": "string", "format": "date-time", "description": "15 minutes to 8 hours after startTime", "example": "2026-12-01T11:30:00Z" }
+        }
+      },
+      "ReservationPage": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Reservation" } },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": { "type": "integer", "example": 1 },
+              "limit": { "type": "integer", "example": 20 },
+              "total": { "type": "integer", "example": 2 },
+              "totalPages": { "type": "integer", "example": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
